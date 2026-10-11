@@ -33,7 +33,7 @@ class DriverRepository{
     async updateAvailability(driverId, availabilityStatus) {
         return await driver.findByIdAndUpdate(
             driverId,
-            { availabilityStatus },
+            { availabilityStatus,lastSeen: new Date() },
             { new: true }
         );
     }
@@ -46,6 +46,52 @@ class DriverRepository{
     async deleteDriver(id){
         return await driver.findByIdAndDelete(id);
     }
+
+    async findNearByDriver(longitude,latitude,vehicleType,maxDistance =5000){
+        return await driver.aggregate(
+            [
+                {
+                    $geoNear:{
+                        near:{
+                            type:"Point",
+                            coordinates: [longitude,latitude],
+                        },
+                    
+                        distanceField: "distance",
+                        maxDistance: maxDistance,
+                        spherical: true,   
+                        query: {
+                            status: "approved",
+                            availabilityStatus: "online"
+                        }
+                    }
+                    
+                },
+                {
+                    $lookup:{
+                        from: "vehicles",
+                        localField: "_id",
+                        foreignField: "driverId",
+                        as: "vehicle"
+                    }
+                },
+                {
+                    $unwind: "$vehicle"
+                },
+
+                {
+                    $match: {
+                        "vehicle.vehicleType": vehicleType
+                    }
+                },
+                {
+                    $limit: 10
+                }
+            ]
+        );
+  
+    }
+
 
 }
 module.exports = new DriverRepository();
